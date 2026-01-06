@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ensureProfileRow } from "@/lib/profiles/ensure-profile";
 import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
@@ -42,6 +43,15 @@ export async function POST(request: Request) {
   }
 
   const userId = authData.claims.sub;
+  const { error: profileError } = await ensureProfileRow(userId);
+
+  if (profileError) {
+    return NextResponse.json(
+      { error: "Failed to prepare profile" },
+      { status: 500 },
+    );
+  }
+
   const { error: memberError } = await supabase
     .from("group_members")
     .insert({ group_id: group.id, user_id: userId });

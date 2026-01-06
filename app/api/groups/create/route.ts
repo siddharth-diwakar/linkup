@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { generateJoinCode } from "@/lib/groups/join-code";
+import { ensureProfileRow } from "@/lib/profiles/ensure-profile";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_CREATE_ATTEMPTS = 5;
@@ -25,12 +27,22 @@ export async function POST(request: Request) {
   }
 
   const userId = authData.claims.sub;
+  const { error: profileError } = await ensureProfileRow(userId);
+
+  if (profileError) {
+    return NextResponse.json(
+      { error: "Failed to prepare profile" },
+      { status: 500 },
+    );
+  }
+
+  const admin = createAdminClient();
   let createdGroup = null;
   let lastError = null;
 
   for (let attempt = 0; attempt < MAX_CREATE_ATTEMPTS; attempt += 1) {
     const joinCode = generateJoinCode().toUpperCase();
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from("groups")
       .insert({ name, join_code: joinCode, created_by: userId })
       .select("id,name,join_code,created_by,created_at")
@@ -60,7 +72,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { error: memberError } = await supabase
+  const { error: memberError } = await admin
     .from("group_members")
     .insert({ group_id: createdGroup.id, user_id: userId });
 

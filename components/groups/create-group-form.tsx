@@ -31,7 +31,11 @@ export function CreateGroupForm() {
 
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload?.error ?? "Unable to create group.");
+        setError(
+          payload?.details
+            ? `${payload?.error ?? "Unable to create group."} (${payload.details})`
+            : payload?.error ?? "Unable to create group.",
+        );
         return;
       }
 

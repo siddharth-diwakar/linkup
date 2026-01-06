@@ -1,10 +1,37 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function AppLayout({
+function AppLayoutFallback() {
+  return (
+    <div className="min-h-screen">
+      <div className="relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-24 -right-20 h-64 w-64 rounded-full bg-accent/20 blur-3xl" />
+          <div className="absolute top-40 -left-20 h-72 w-72 rounded-full bg-primary/15 blur-[120px]" />
+        </div>
+        <nav className="relative z-10 w-full border-b border-border/70 bg-background/70 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+            <div className="flex items-center gap-6">
+              <span className="font-display text-2xl tracking-tight">
+                LinkUp
+              </span>
+            </div>
+            <div className="h-8 w-24 rounded-full bg-muted/60" />
+          </div>
+        </nav>
+        <main className="relative z-10 mx-auto w-full max-w-6xl px-6 py-10">
+          <div className="h-40 rounded-3xl border border-border/60 bg-card/60" />
+        </main>
+      </div>
+    </div>
+  );
+}
+
+async function AppLayoutContent({
   children,
 }: {
   children: React.ReactNode;
@@ -78,5 +105,17 @@ export default async function AppLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={<AppLayoutFallback />}>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </Suspense>
   );
 }

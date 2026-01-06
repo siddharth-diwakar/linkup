@@ -81,6 +81,8 @@ alter table public.calendar_uploads enable row level security;
 alter table public.weekday_busy_blocks enable row level security;
 
 -- Profiles: readable by any signed-in user, editable by owner
+drop policy if exists "Profiles are viewable by authenticated users" on public.profiles;
+drop policy if exists "Users can update own profile" on public.profiles;
 create policy "Profiles are viewable by authenticated users"
   on public.profiles
   for select
@@ -94,19 +96,38 @@ create policy "Users can update own profile"
   using (auth.uid() = id)
   with check (auth.uid() = id);
 
+-- Helper to check membership without RLS recursion
+create or replace function public.is_group_member(
+  target_group uuid,
+  target_user uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+set row_security = off
+as $$
+begin
+  return exists (
+    select 1
+    from public.group_members gm
+    where gm.group_id = target_group
+      and gm.user_id = target_user
+  );
+end;
+$$;
+
+alter function public.is_group_member(uuid, uuid) owner to postgres;
+grant execute on function public.is_group_member(uuid, uuid) to authenticated;
+
 -- Groups: members can read, any user can create
+drop policy if exists "Group members can view groups" on public.groups;
+drop policy if exists "Users can create groups" on public.groups;
 create policy "Group members can view groups"
   on public.groups
   for select
   to authenticated
-  using (
-    exists (
-      select 1
-      from public.group_members gm
-      where gm.group_id = id
-        and gm.user_id = auth.uid()
-    )
-  );
+  using (public.is_group_member(id, auth.uid()));
 
 create policy "Users can create groups"
   on public.groups
@@ -115,18 +136,13 @@ create policy "Users can create groups"
   with check (auth.uid() = created_by);
 
 -- Group members: members can read, users can join for themselves
+drop policy if exists "Group members can view membership" on public.group_members;
+drop policy if exists "Users can join groups" on public.group_members;
 create policy "Group members can view membership"
   on public.group_members
   for select
   to authenticated
-  using (
-    exists (
-      select 1
-      from public.group_members gm
-      where gm.group_id = group_id
-        and gm.user_id = auth.uid()
-    )
-  );
+  using (public.is_group_member(group_id, auth.uid()));
 
 create policy "Users can join groups"
   on public.group_members
@@ -135,6 +151,7 @@ create policy "Users can join groups"
   with check (auth.uid() = user_id);
 
 -- Calendar uploads: owners only
+drop policy if exists "Users manage their calendar uploads" on public.calendar_uploads;
 create policy "Users manage their calendar uploads"
   on public.calendar_uploads
   for all
@@ -143,6 +160,7 @@ create policy "Users manage their calendar uploads"
   with check (auth.uid() = user_id);
 
 -- Busy blocks: owners only
+drop policy if exists "Users manage their busy blocks" on public.weekday_busy_blocks;
 create policy "Users manage their busy blocks"
   on public.weekday_busy_blocks
   for all

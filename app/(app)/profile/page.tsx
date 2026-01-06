@@ -1,11 +1,16 @@
 import { CalendarUploadForm } from "@/components/profile/calendar-upload-form";
 import { DisplayNameForm } from "@/components/profile/display-name-form";
+import { ensureProfileRow } from "@/lib/profiles/ensure-profile";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProfilePage() {
   const supabase = await createClient();
   const { data: authData } = await supabase.auth.getClaims();
   const userId = authData?.claims?.sub ?? null;
+
+  if (userId) {
+    await ensureProfileRow(userId);
+  }
 
   const { data: profile } = userId
     ? await supabase

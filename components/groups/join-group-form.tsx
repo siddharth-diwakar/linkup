@@ -31,7 +31,11 @@ export function JoinGroupForm() {
 
       const payload = await response.json();
       if (!response.ok) {
-        setError(payload?.error ?? "Unable to join group.");
+        setError(
+          payload?.details
+            ? `${payload?.error ?? "Unable to join group."} (${payload.details})`
+            : payload?.error ?? "Unable to join group.",
+        );
         return;
       }
 

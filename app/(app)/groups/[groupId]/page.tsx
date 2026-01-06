@@ -11,13 +11,14 @@ type MemberRow = {
 export default async function GroupPage({
   params,
 }: {
-  params: { groupId: string };
+  params: Promise<{ groupId: string }>;
 }) {
+  const { groupId } = await params;
   const supabase = await createClient();
   const { data: group } = await supabase
     .from("groups")
     .select("id,name,join_code,created_at")
-    .eq("id", params.groupId)
+    .eq("id", groupId)
     .maybeSingle();
 
   if (!group) {
@@ -27,7 +28,7 @@ export default async function GroupPage({
   const { data: members } = await supabase
     .from("group_members")
     .select("user_id, profiles ( display_name )")
-    .eq("group_id", params.groupId);
+    .eq("group_id", groupId);
 
   const memberRows = (members ?? []) as MemberRow[];
   const sortedMembers = [...memberRows].sort((a, b) => {
