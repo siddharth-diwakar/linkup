@@ -16,6 +16,7 @@ async function HomeRedirect() {
   }
 
   redirect("/dashboard");
+  return null;
 }
 
 export default function Home() {
