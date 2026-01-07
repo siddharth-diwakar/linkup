@@ -13,9 +13,6 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-10">
       <header className="space-y-3">
-        <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
-          Dashboard
-        </p>
         <h1 className="font-display text-4xl text-foreground md:text-5xl">
           See who is free right now.
         </h1>
@@ -63,9 +60,7 @@ export default async function DashboardPage() {
         </section>
         <aside className="rounded-3xl border border-border/60 bg-card/80 p-6 shadow-sm">
           <h2 className="font-display text-2xl">Create a group</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Name the group, get a join code, and invite your people.
-          </p>
+          
           <div className="mt-6">
             <CreateGroupForm />
           </div>

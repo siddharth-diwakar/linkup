@@ -34,13 +34,8 @@ export default async function ProfilePage() {
         <p className="text-sm uppercase tracking-[0.3em] text-muted-foreground">
           Profile
         </p>
-        <h1 className="font-display text-4xl md:text-5xl">
-          Your availability, simplified.
-        </h1>
-        <p className="max-w-xl text-base text-muted-foreground">
-          Update your display name and upload your class calendar. We only store
-          weekday busy blocks.
-        </p>
+        
+       
       </header>
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-3xl border border-border/60 bg-card/80 p-6 shadow-sm">
