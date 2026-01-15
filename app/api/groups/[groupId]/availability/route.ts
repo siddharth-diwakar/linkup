@@ -45,7 +45,7 @@ function timeToMinutes(timeValue: string): number {
   return safeHours * 60 + safeMinutes + safeSeconds / 60;
 }
 
-function formatEndTime(timeValue: string): string {
+function formatTime(timeValue: string): string {
   const [hoursRaw, minutesRaw] = timeValue.split(":");
   const hours = Number(hoursRaw);
   const minutes = Number(minutesRaw);
@@ -54,6 +54,26 @@ function formatEndTime(timeValue: string): string {
   const period = safeHours >= 12 ? "PM" : "AM";
   const displayHours = ((safeHours + 11) % 12) + 1;
   return `${displayHours}:${safeMinutes.toString().padStart(2, "0")}${period}`;
+}
+
+function parseTimeParam(timeValue: string | null) {
+  if (!timeValue) {
+    return null;
+  }
+
+  const match = timeValue.match(
+    /^([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/,
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const normalized = `${match[1]}:${match[2]}:${match[3] ?? "00"}`;
+  return {
+    minutes: timeToMinutes(normalized),
+    label: formatTime(normalized),
+  };
 }
 
 function getCurrentTimeParts() {
@@ -70,7 +90,7 @@ function getCurrentTimeParts() {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ groupId: string }> },
 ) {
   const supabase = await createClient();
@@ -79,6 +99,18 @@ export async function GET(
 
   if (authError || !authData?.claims?.sub) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const requestUrl = new URL(request.url);
+  const timeParam = requestUrl.searchParams.get("time");
+  const parsedTime = parseTimeParam(timeParam);
+  const checkedTime = parsedTime?.label ?? null;
+
+  if (timeParam && !parsedTime) {
+    return NextResponse.json(
+      { error: "Invalid time format. Use HH:MM." },
+      { status: 400 },
+    );
   }
 
   const { groupId } = await context.params;
@@ -129,7 +161,7 @@ export async function GET(
 
   if (userIds.length === 0) {
     return NextResponse.json(
-      { free: [], busy: [], unknown: [] },
+      { free: [], busy: [], unknown: [], checked_time: checkedTime },
       { status: 200 },
     );
   }
@@ -152,6 +184,7 @@ export async function GET(
   const weekday = nowParts.weekday;
   const isWeekday = weekday >= 1 && weekday <= 5;
   const nowMinutes = nowParts.hours * 60 + nowParts.minutes;
+  const referenceMinutes = parsedTime?.minutes ?? nowMinutes;
 
   let busyBlocks: BusyBlockRow[] = [];
   if (isWeekday) {
@@ -171,22 +204,40 @@ export async function GET(
     busyBlocks = (blocks ?? []) as BusyBlockRow[];
   }
 
-  const busyMap = new Map<string, { busy_until: string }>();
+  const busyMap = new Map<string, { busy_until: string; endMinutes: number }>();
+  const nextBusyMap = new Map<
+    string,
+    { startMinutes: number; startLabel: string }
+  >();
 
   for (const block of busyBlocks) {
     const startMinutes = timeToMinutes(block.start_time);
     const endMinutes = timeToMinutes(block.end_time);
-    if (startMinutes <= nowMinutes && nowMinutes < endMinutes) {
+    if (startMinutes > referenceMinutes) {
+      const existingNext = nextBusyMap.get(block.user_id);
+      if (!existingNext || startMinutes < existingNext.startMinutes) {
+        nextBusyMap.set(block.user_id, {
+          startMinutes,
+          startLabel: formatTime(block.start_time),
+        });
+      }
+    }
+    if (startMinutes <= referenceMinutes && referenceMinutes < endMinutes) {
       const existing = busyMap.get(block.user_id);
-      if (!existing || endMinutes < timeToMinutes(existing.busy_until)) {
+      if (!existing || endMinutes > existing.endMinutes) {
         busyMap.set(block.user_id, {
-          busy_until: formatEndTime(block.end_time),
+          busy_until: formatTime(block.end_time),
+          endMinutes,
         });
       }
     }
   }
 
-  const free: Array<{ user_id: string; display_name: string }> = [];
+  const free: Array<{
+    user_id: string;
+    display_name: string;
+    free_until: string | null;
+  }> = [];
   const busy: Array<{
     user_id: string;
     display_name: string;
@@ -213,8 +264,16 @@ export async function GET(
       continue;
     }
 
-    free.push({ user_id: member.user_id, display_name: name });
+    const nextBusy = nextBusyMap.get(member.user_id);
+    free.push({
+      user_id: member.user_id,
+      display_name: name,
+      free_until: nextBusy?.startLabel ?? null,
+    });
   }
 
-  return NextResponse.json({ free, busy, unknown }, { status: 200 });
+  return NextResponse.json(
+    { free, busy, unknown, checked_time: checkedTime },
+    { status: 200 },
+  );
 }
